@@ -1,78 +1,126 @@
-def load_inventory(file_path="inventory.txt"):
-    items = []
-    with open(file_path, "r") as file:
-        for line in file:
-            id, name, price, stock = line.strip().split(", ")
-            items.append({
-                "id": id,
-                "name": name,
-                "price": float(price),
-                "stock": int(stock)
-            })
-    return items
+import pandas as pd
 
-def display_products(inventory):
-    print("\nAvailable Products:")
-    for item in inventory:
-        print(f"{item['id']} - {item['name']} - ${item['price']} - Stock: {item['stock']}")
+class Product:
+    def __init__ (self, id, name, price, stock):
+        self.id = id
+        self.name = name
+        self.price = price
+        self.stock = stock
+        
+    def update_stock(self, quantity):
+        if self.stock >= quantity:
+            self.stock -= quantity
+            return True
+        return False
+    
+    def __str__(self):
+        return f"Product: {self.name}, Price: {self.price}, Available Stock: {self.stock}"
 
-def update_stock(inventory, product_id, quantity):
-    for item in inventory:
-        if item["id"] == product_id:
-            if item["stock"] >= quantity:
-                item["stock"] -= quantity
-                return True
-            return False
-    return False
+    
+class Cart:
+    def __init__(self):
+        self.items = {}
 
-def add_to_cart(cart, inventory, product_id, quantity):
-    for item in inventory:
-        if item["id"] == product_id:
-            if update_stock(inventory, product_id, quantity):
-                if product_id in cart:
-                    cart[product_id][2] += quantity
+    # CART = {ID : {NAME, PRICE, QUANTITY}}
+    def add_item(self, product_id, quantity, inventory):
+        if product_id in inventory:
+            product = inventory[product_id]
+            if product.update_stock(quantity):
+                if product_id not in self.items:
+                    self.items[product_id] = {
+                        "ID" : product.id,
+                        "Name": product.name,
+                        "Total Price": product.price * quantity,
+                        "Quantity": quantity
+                    }
                 else:
-                    cart[product_id] = [item["name"], item["price"], quantity]
-                print("Item added to cart.")
+                    self.items[product_id]["Quantity"] += quantity
+                    self.items[product_id]["Total Price"] += product.price * quantity
+                print(f"{quantity} units of '{product.name}' added to cart.")
             else:
-                print("Not enough stock.")
+                print("There isn't enough stock.")
+            return 
+        print(f"The product ID '{product_id}' doesn't exist.")
+
+    def view_items(self):
+        if not self.items:
+            print("Cart is empty.")
             return
-    print("Product ID not found.")
+        print("\nCart Summary:")
+        for pid, details in self.items.items():
+            name = details["Name"]
+            total_price = details["Total Price"]
+            qty = details["Quantity"]
+            print(f"{pid}: {name} - {qty} pcs - ${total_price:.2f}")
 
-def view_cart(cart):
-    if not cart:
-        print("Cart is empty.")
-        return
-    print("\nCart Summary:")
-    for pid, details in cart.items():
-        name, price, qty = details
-        print(f"{pid}: {name} - {qty} pcs - ${price * qty:.2f}")
+    def calculate_total(self):
+        total = 0
+        for item in self.items.values():
+            total += item["Total Price"]
+        return total
 
-def save_inventory(inventory, file_path="inventory.txt"):
-    with open(file_path, "w") as file:
-        for item in inventory:
-            line = ", ".join([item["id"], item["name"], str(item["price"]), str(item["stock"])])
-            file.write(line + "\n")
+    def clear_cart(self):
+        if self.items:
+            self.items.clear()
+            print("The cart was cleared")
+        else:
+            print("The cart is already empty")
+        
 
-def save_transactions(cart, file_path="transactions.txt"):
-    with open(file_path, "a") as file:
-        for i, (pid, details) in enumerate(cart.items(), start=1):
-            name, price, qty = details
-            line = f"TRANSACTION {i}: {pid}, {name}, ${price}, Qty: {qty}\n"
-            file.write(line)
+class VendingMachine:
+    def __init__(self):
+        self.inventory = {}
+        
+    def load_inventory(self, file_path="inventory.txt"):
+        with open(file_path, "r") as file:
+            for line in file:
+                id, name, price, stock = line.strip().split(", ")
+                self.inventory[id] = Product(id, name, float(price), int(stock))
+        return self.inventory
 
-def checkout(cart, inventory):
-    view_cart(cart)
-    confirm = input("Do you want to confirm the purchase? (y/n): ")
-    if confirm.lower() == 'y':
-        save_inventory(inventory)
-        save_transactions(cart)
-        cart.clear()
-        print("Purchase completed and saved!")
+    def display_products(self):
+        print("\nAvailable Products:")
+        items = []
+        for pid, details in self.inventory.items():
+            name = details.name
+            price = details.price
+            qty = details.stock
+            print(f"{pid}: {name} - {qty} pcs - ${price:.2f}")
+
+    def checkout(self, cart):
+        cart.view_items()
+        print(f"Total: ${cart.calculate_total():.2f}")
+        confirm = input("Do you want to confirm the purchase? (y/n): ")
+        if confirm.lower() == 'y':
+            self.save_inventory()
+            self.save_transactions(cart)
+            cart.clear_cart()
+            print("Purchase completed and saved!")
+            
+    def save_inventory(self, file_path="inventory.txt"):
+        with open(file_path, "w") as file:
+            for product in self.inventory.values():
+                line = ", ".join([product.id, product.name, str(product.price), str(product.stock)])
+                file.write(line + "\n")
+
+    def save_transactions(self, cart, file_path="transactions.txt"):
+        with open(file_path, "a") as file:
+            for i, item in enumerate(cart.items.values(), start=1):
+                pid = item["ID"]
+                name = item["Name"]
+                price = item["Total Price"]
+                qty = item["Quantity"]
+                line = f"TRANSACTION {i}: {pid}, {name}, ${price}, Qty: {qty}\n"
+                file.write(line)
+            print("Transaction recorded.")
+
+
+    
 
 def main():
-    inventory = load_inventory()
-    cart = {}
+    machine = VendingMachine()
+    machine.load_inventory()
+    cart = Cart()
 
     while True:
         print("""
@@ -80,26 +128,28 @@ def main():
 2. Add Products to Cart   
 3. View Cart 
 4. Checkout   
+5. Exit
         """)
         choice = input("Enter your choice: ").strip()
 
         if choice == "1":
-            display_products(inventory)
+            machine.display_products()
         elif choice == "2":
-            display_products(inventory)
+            machine.display_products()
             product_id = input("Enter Product ID: ").strip()
             quantity = int(input("Enter Quantity: "))
-            add_to_cart(cart, inventory, product_id, quantity)
+            cart.add_item(product_id, quantity, machine.inventory)
         elif choice == "3":
-            view_cart(cart)
+            cart.view_items()
         elif choice == "4":
-            checkout(cart, inventory)
+            machine.checkout(cart)
+        elif choice == "5":
+            break
         else:
             print("Invalid choice.")
 
-        cont = input("Do you want to continue? (y/n): ")
+        cont = input("Enter 'n' to exit or press Enter to continue: ")
         if cont.lower() == 'n':
             break
-
 
 main()
