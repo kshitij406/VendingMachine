@@ -1,0 +1,6 @@
+*.log
+*.bak
+inventory(backup).txt
+clientbackup.py
+__pycache__/
+.env
