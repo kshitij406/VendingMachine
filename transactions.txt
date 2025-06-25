@@ -1,2 +1,0 @@
-TRANSACTION 1: 1, Python Programming eBook, $109.9, Qty: 10
-TRANSACTION 2: 2, Photo Editing License, $449.84999999999997, Qty: 15
