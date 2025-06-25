@@ -5,6 +5,7 @@ import traceback
 from backend import VendingMachine
 from backend import Cart
 
+
 class Server:
     def __init__(self):
         self.HOST = "127.0.0.1"
@@ -31,14 +32,13 @@ class Server:
 
         try:
             menu = f"""Hello {client_address}, welcome to the vending machine!
-    
        FUNCTION                COMMAND
     1. View All Products     -  [VIEW]
     2. Add Products to Cart  -  [ADD]
     3. View Cart             -  [CART]
     4. Checkout              -  [CHECKOUT]
     5. Exit                  -  [EXIT]
-    """
+                                """
             client_socket.send(menu.encode("utf-8"))
             client_socket.send("Enter your command: ".encode("utf-8"))
 
@@ -48,43 +48,55 @@ class Server:
                     print(f"[!] No command from {client_address}, skipping...")
                     continue
 
-                if request.startswith("VIEW"):
+                if request.lower().startswith("view"):
                     message = inventory.display_products()
                     client_socket.send(message.encode("utf-8"))
                     client_socket.send("\nEnter next command: ".encode("utf-8"))
 
-                elif request.startswith("ADD"):
-                    products = inventory.display_products()
-                    client_socket.send(products.encode("utf-8"))
-
+                elif request.lower().startswith("add"):
+                    client_socket.send(inventory.display_products().encode("utf-8"))
                     client_socket.send("Enter Product ID: ".encode("utf-8"))
-                    pid = client_socket.recv(self.BUFSIZE).decode().strip()
+
+                    pid = client_socket.recv(self.BUFSIZE).decode("utf-8").strip()
+                    if not pid.isdigit() or int(pid) not in inventory.inventory:
+                        client_socket.send("Invalid Product ID.\nEnter next command: ".encode("utf-8"))
+                        continue
+
+                    pid = int(pid)
 
                     client_socket.send("Enter Quantity: ".encode("utf-8"))
-                    qty = int(client_socket.recv(self.BUFSIZE).decode().strip())
+                    qty_data = client_socket.recv(self.BUFSIZE).decode("utf-8").strip()
+                    if not qty_data.isdigit():
+                        client_socket.send("Invalid quantity.\nEnter next command: ".encode("utf-8"))
+                        continue
 
+                    qty = int(qty_data)
                     cart.add_item(pid, qty, inventory.inventory)
-                    client_socket.send("Item added to cart.".encode("utf-8"))
-                    client_socket.send("\nEnter next command: ".encode("utf-8"))
 
-                elif request.startswith("CART"):
+                    client_socket.send(
+                        f"Added {qty} x {inventory.inventory[pid].name} to cart.\nEnter next command: ".encode("utf-8"))
+
+                elif request.lower().startswith("cart"):
                     cart_details = cart.view_items()
                     client_socket.send(cart_details.encode("utf-8"))
                     client_socket.send("\nEnter next command: ".encode("utf-8"))
 
-                elif request.startswith("CHECKOUT"):
+                elif request.lower().startswith("checkout"):
                     receipt = inventory.checkout(cart)
                     client_socket.send(receipt.encode("utf-8"))
                     client_socket.send("\nEnter next command: ".encode("utf-8"))
 
+
                 elif request.lower() == "exit":
-                    client_socket.send("Goodbye!".encode("utf-8"))
+                    try:
+                        client_socket.send("Goodbye!".encode("utf-8"))
+                    except ConnectionResetError:
+                        print(f"[!] Client {client_address} disconnected before goodbye message.")
                     break
 
-                else:
-                    client_socket.send("Invalid command.".encode("utf-8"))
-                    client_socket.send("\nEnter next command: ".encode("utf-8"))
 
+                else:
+                    client_socket.send("Invalid command.\nEnter next command: ".encode("utf-8"))
 
         except Exception as e:
             print(f"[!] Error with {client_address}: {e}")

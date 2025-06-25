@@ -1,10 +1,9 @@
 from socket import *
 
-
 class Client:
     def __init__(self):
-        self.HOST = "0.tcp.ap.ngrok.io"
-        self.PORT = 16542
+        self.HOST = "localhost"
+        self.PORT = 5556
         self.ADDRESS = (self.HOST, self.PORT)
         self.BUFSIZE = 1024
         self.initialize_client_socket()
@@ -27,7 +26,9 @@ class Client:
                     self.client.send(message.encode("utf-8"))
 
                     if message.lower() == "exit":
+                        print(self.client.recv(self.BUFSIZE).decode("utf-8"))
                         break
+
 
             except Exception as e:
                 print(f"Error: {e}")
