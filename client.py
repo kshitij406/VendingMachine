@@ -1,29 +1,41 @@
 from socket import *
-HOST = "localhost"
-PORT = 5556
-ADDRESS = (HOST, PORT)
-BUFSIZE = 1024
 
-client = socket(AF_INET, SOCK_STREAM)
-client.connect(ADDRESS)
 
-buffer = ""
-while True:
-    try:
-        response = client.recv(BUFSIZE).decode("utf-8")
-        buffer += response
+class Client:
+    def __init__(self):
+        self.HOST = "0.tcp.ap.ngrok.io"
+        self.PORT = 16542
+        self.ADDRESS = (self.HOST, self.PORT)
+        self.BUFSIZE = 1024
+        self.initialize_client_socket()
 
-        if "Enter" in buffer or "command" in buffer or "You:" in buffer:
-            print(f"Server:\n{buffer}")
-            buffer = ""
-            message = input("You: ")
-            client.send(message.encode("utf-8"))
+    def initialize_client_socket(self):
+        self.client = socket(AF_INET, SOCK_STREAM)
+        self.client.connect(self.ADDRESS)
 
-            if message.lower() == "exit":
+    def run(self):
+        buffer = ""
+        while True:
+            try:
+                response = self.client.recv(self.BUFSIZE).decode("utf-8")
+                buffer += response
+
+                if "Enter" in buffer or "command" in buffer or "You:" in buffer:
+                    print(f"Server:\n{buffer}")
+                    buffer = ""
+                    message = input("You: ")
+                    self.client.send(message.encode("utf-8"))
+
+                    if message.lower() == "exit":
+                        break
+
+            except Exception as e:
+                print(f"Error: {e}")
                 break
 
-    except Exception as e:
-        print(f"Error: {e}")
-        break
+        self.client.close()
 
-client.close()
+
+if __name__ == "__main__":
+    client = Client()
+    client.run()

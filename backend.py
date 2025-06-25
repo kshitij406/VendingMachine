@@ -1,5 +1,3 @@
-from socket import *
-
 class Product:
     def __init__ (self, id, name, price, stock):
         self.id = id
@@ -46,7 +44,6 @@ class Cart:
         cart_in_string = "CART:\n"
         if not self.items:
             return "Cart is empty."
-        print("\nCart Summary:")
         for pid, details in self.items.items():
             name = details["Name"]
             total_price = details["Total Price"]
