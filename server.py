@@ -55,26 +55,18 @@ class Server:
 
                 elif request.lower().startswith("add"):
                     client_socket.send(inventory.display_products().encode("utf-8"))
+
                     client_socket.send("Enter Product ID: ".encode("utf-8"))
-
                     pid = client_socket.recv(self.BUFSIZE).decode("utf-8").strip()
-                    if not pid.isdigit() or int(pid) not in inventory.inventory:
-                        client_socket.send("Invalid Product ID.\nEnter next command: ".encode("utf-8"))
-                        continue
-
                     pid = int(pid)
 
                     client_socket.send("Enter Quantity: ".encode("utf-8"))
                     qty_data = client_socket.recv(self.BUFSIZE).decode("utf-8").strip()
-                    if not qty_data.isdigit():
-                        client_socket.send("Invalid quantity.\nEnter next command: ".encode("utf-8"))
-                        continue
-
                     qty = int(qty_data)
-                    cart.add_item(pid, qty, inventory.inventory)
 
-                    client_socket.send(
-                        f"Added {qty} x {inventory.inventory[pid].name} to cart.\nEnter next command: ".encode("utf-8"))
+                    message = cart.add_item(pid, qty, inventory.inventory)
+                    client_socket.send(message.encode("utf-8"))
+                    client_socket.send("\nEnter next command: ".encode("utf-8"))
 
                 elif request.lower().startswith("cart"):
                     cart_details = cart.view_items()

@@ -34,11 +34,12 @@ class Cart:
                 else:
                     self.items[product_id]["Quantity"] += quantity
                     self.items[product_id]["Total Price"] += product.price * quantity
-                print(f"{quantity} units of '{product.name}' added to cart.")
+                message = f"{quantity} units of '{product.name}' added to cart."
             else:
-                print("There isn't enough stock.")
-            return
-        print(f"The product ID '{product_id}' doesn't exist.")
+                message = "There isn't enough stock."
+            return message
+        message = f"The product ID '{product_id}' doesn't exist."
+        return message
 
     def view_items(self):
         if not self.items:
@@ -114,39 +115,3 @@ class VendingMachine:
         conn.close()
         return "Transaction recorded."
 
-    
-
-def main():
-    machine = VendingMachine()
-    machine.load_inventory()
-    cart = Cart()
-
-    while True:
-        print("""
-1. View All Products 
-2. Add Products to Cart   
-3. View Cart 
-4. Checkout   
-5. Exit
-        """)
-        choice = input("Enter your choice: ").strip()
-
-        if choice == "1":
-            machine.display_products()
-        elif choice == "2":
-            machine.display_products()
-            product_id = input("Enter Product ID: ").strip()
-            quantity = int(input("Enter Quantity: "))
-            cart.add_item(product_id, quantity, machine.inventory)
-        elif choice == "3":
-            cart.view_items()
-        elif choice == "4":
-            machine.checkout(cart)
-        elif choice == "5":
-            break
-        else:
-            print("Invalid choice.")
-
-        cont = input("Enter 'n' to exit or press Enter to continue: ")
-        if cont.lower() == 'n':
-            break
