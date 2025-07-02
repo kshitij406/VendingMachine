@@ -5,7 +5,6 @@ import traceback
 from backend import VendingMachine
 from backend import Cart
 
-
 class Server:
     def __init__(self):
         self.HOST = "127.0.0.1"
@@ -31,17 +30,6 @@ class Server:
         cart = Cart()
 
         try:
-            menu = f"""Hello {client_address}, welcome to the vending machine!
-       FUNCTION                COMMAND
-    1. View All Products     -  [VIEW]
-    2. Add Products to Cart  -  [ADD]
-    3. View Cart             -  [CART]
-    4. Checkout              -  [CHECKOUT]
-    5. Exit                  -  [EXIT]
-                                """
-            client_socket.send(menu.encode("utf-8"))
-            client_socket.send("Enter your command: ".encode("utf-8"))
-
             while True:
                 request = client_socket.recv(self.BUFSIZE).decode().strip()
                 if not request:
@@ -51,33 +39,24 @@ class Server:
                 if request.lower().startswith("view"):
                     message = inventory.display_products()
                     client_socket.send(message.encode("utf-8"))
-                    client_socket.send("\nEnter next command: ".encode("utf-8"))
 
                 elif request.lower().startswith("add"):
-                    client_socket.send(inventory.display_products().encode("utf-8"))
-
-                    client_socket.send("Enter Product ID: ".encode("utf-8"))
-                    pid = client_socket.recv(self.BUFSIZE).decode("utf-8").strip()
-                    pid = int(pid)
-
-                    client_socket.send("Enter Quantity: ".encode("utf-8"))
-                    qty_data = client_socket.recv(self.BUFSIZE).decode("utf-8").strip()
-                    qty = int(qty_data)
-
-                    message = cart.add_item(pid, qty, inventory.inventory)
-                    client_socket.send(message.encode("utf-8"))
-                    client_socket.send("\nEnter next command: ".encode("utf-8"))
+                    try:
+                        _, pid, qty = request.split()
+                        pid = int(pid)
+                        qty = int(qty)
+                        message = cart.add_item(pid, qty, inventory.inventory)
+                        client_socket.send(message.encode("utf-8"))
+                    except Exception as e:
+                        client_socket.send(f"Invalid ADD format. Use: ADD <product_id> <quantity>\n".encode("utf-8"))
 
                 elif request.lower().startswith("cart"):
                     cart_details = cart.view_items()
                     client_socket.send(cart_details.encode("utf-8"))
-                    client_socket.send("\nEnter next command: ".encode("utf-8"))
 
                 elif request.lower().startswith("checkout"):
                     receipt = inventory.checkout(cart)
                     client_socket.send(receipt.encode("utf-8"))
-                    client_socket.send("\nEnter next command: ".encode("utf-8"))
-
 
                 elif request.lower() == "exit":
                     try:
@@ -86,9 +65,8 @@ class Server:
                         print(f"[!] Client {client_address} disconnected before goodbye message.")
                     break
 
-
                 else:
-                    client_socket.send("Invalid command.\nEnter next command: ".encode("utf-8"))
+                    client_socket.send("Invalid command.".encode("utf-8"))
 
         except Exception as e:
             print(f"[!] Error with {client_address}: {e}")
@@ -105,7 +83,6 @@ class Server:
             thread = threading.Thread(target=self.handle_client, args=(client, client_address))
             thread.start()
             print(f"[=] Active Connections: {threading.active_count() - 1}")
-
 
 if __name__ == "__main__":
     server = Server()

@@ -12,31 +12,10 @@ class Client:
         self.client = socket(AF_INET, SOCK_STREAM)
         self.client.connect(self.ADDRESS)
 
-    def run(self):
-        buffer = ""
-        while True:
-            try:
-                response = self.client.recv(self.BUFSIZE).decode("utf-8")
-                buffer += response
-
-                if "Enter" in buffer or "command" in buffer or "You:" in buffer:
-                    print(f"Server:\n{buffer}")
-                    buffer = ""
-                    message = input("You: ")
-                    self.client.send(message.encode("utf-8"))
-
-                    if message.lower() == "exit":
-                        print(self.client.recv(self.BUFSIZE).decode("utf-8"))
-                        break
-
-
-            except Exception as e:
-                print(f"Error: {e}")
-                break
-
-        self.client.close()
-
-
-if __name__ == "__main__":
-    client = Client()
-    client.run()
+    def send_command(self, command):
+        try:
+            self.client.send(command.encode("utf-8"))
+            response = self.client.recv(self.BUFSIZE).decode("utf-8")
+            return response
+        except Exception as e:
+            return f"Error: {e}"
