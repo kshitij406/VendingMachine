@@ -30,11 +30,12 @@ class Server:
         cart = Cart()
 
         try:
+            silent_counter = 0
             while True:
                 request = client_socket.recv(self.BUFSIZE).decode().strip()
-                if not request:
-                    print(f"[!] No command from {client_address}, skipping...")
-                    continue
+                silent_counter += 1
+                if silent_counter % 50 == 0:
+                    print(f"[i] Still connected to {client_address}, no new command.")
 
                 if request.lower().startswith("view"):
                     message = inventory.display_products()
