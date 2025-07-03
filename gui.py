@@ -27,6 +27,9 @@ def add_to_cart():
             response = client.send_command(command)
         except Exception as e:
             response = f"Error: {e}"
+        finally:
+            entry_pid.delete(0, tk.END)
+            entry_qty.delete(0, tk.END)
 
         update_display(response)
 
