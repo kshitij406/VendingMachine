@@ -1,4 +1,9 @@
 import sqlite3
+import matplotlib.pyplot as plt
+import matplotlib
+matplotlib.use('Agg')
+import base64
+from io import BytesIO
 
 # Product class represents an individual product in the vending machine
 class Product:
@@ -47,10 +52,10 @@ class Cart:
         if not self.cart:
             return "Cart is empty."
         output = "Cart:\n"
-        output += f"{'ProductID':<10} {'Name':<20} {'Total':<10} {'Qty':<6}\n"
+        output += f"{'ProductID':<10} {'Name':<30} {'Total':<10} {'Qty':<6}\n"
         output += "-" * 50 + "\n"
         for pid, product in self.cart.items():
-            output += f"{pid:<10} {product.name:<20} ${product.price:<9.2f} {product.stock:<6}\n"
+            output += f"{pid:<10} {product.name:<30} ${product.price:<9.2f} {product.stock:<6}\n"
         return output
 
     # Calculate total cost of items in the cart
@@ -77,7 +82,6 @@ class VendingMachine:
         cur.execute("SELECT * FROM Products")
         products = cur.fetchall()
         conn.close()
-
         inventory = {}
         for product in products:
             pid, name, price, stock = product
@@ -86,23 +90,22 @@ class VendingMachine:
 
     # Display all available products
     def display_products(self):
-        message = f"{'ProductID':<10} {'Name':<20} {'Price':<10} {'Stock':<6}\n"
-        message += "-" * 50 + "\n"
+        self.inventory = self.load_inventory()
+        message = f"{'ProductID':<10} {'Name':<30} {'Price':<10} {'Stock':<6}\n"
+        message += "-" * 70 + "\n"
         for pid, product in self.inventory.items():
-            message += f"{pid:<10} {product.name:<20} ${product.price:<9.2f} {product.stock:<6}\n"
+            message += f"{pid:<10} {product.name:<30} ${product.price:<9.2f} {product.stock:<6}\n"
         return message
 
     # Generate a formatted receipt from the cart contents
     def generate_receipt(self, cart):
-        receipt = "\n" + "=" * 40 + "\n"
+        receipt = "\n" + "=" * 80 + "\n"
         receipt += " " * 12 + "PURCHASE RECEIPT\n"
         receipt += "=" * 40 + "\n"
         receipt += f"{'ProductID':<10} {'Name':<15} {'Qty':<5} {'Total':<8}\n"
         receipt += "-" * 40 + "\n"
-
         for pid, product in cart.cart.items():
             receipt += f"{pid:<10} {product.name:<15} {product.stock:<5} ${product.price:<7.2f}\n"
-
         receipt += "-" * 40 + "\n"
         receipt += f"{'TOTAL':>32} : ${cart.calculate_total():.2f}\n"
         receipt += "=" * 40 + "\n"
@@ -111,9 +114,9 @@ class VendingMachine:
         return receipt
 
     # Finalize purchase: update inventory, record transaction, and clear cart
-    def checkout(self, cart):
+    def checkout(self, cart, username):
         self.save_inventory()
-        self.save_transactions(cart)
+        self.save_transactions(cart, username)
         cart.clear_cart()
         return "\nPurchase completed and saved!"
 
@@ -130,14 +133,14 @@ class VendingMachine:
         conn.close()
 
     # Save cart transaction to the CartTransactions table
-    def save_transactions(self, cart):
+    def save_transactions(self, cart, username):
         conn = sqlite3.connect("vending_machine.db")
         cur = conn.cursor()
         for item in cart.cart.values():
             cur.execute("""
-                INSERT INTO CartTransactions (productID, quantity, totalPrice)
-                VALUES (?, ?, ?)
-            """, (item.id, item.stock, item.price))
+                INSERT INTO CartTransactions (productID, quantity, totalPrice, username)
+                VALUES (?, ?, ?, ?)
+            """, (item.id, item.stock, item.price, username))
         conn.commit()
         conn.close()
         return "Transaction recorded."
@@ -147,22 +150,88 @@ class VendingMachine:
         conn = sqlite3.connect("vending_machine.db")
         cur = conn.cursor()
         cur.execute("""
-            SELECT productID, quantity, totalPrice, transactionDate
+            SELECT productID, quantity, totalPrice, transactionDate, username
             FROM CartTransactions
             ORDER BY transactionDate DESC
             LIMIT 20
         """)
         transactions = cur.fetchall()
         conn.close()
-
         if not transactions:
             return "No previous transactions found."
-
         output = "\nRecent Transactions:\n"
-        output += f"{'ProductID':<10} {'Qty':<5} {'Total($)':<10} {'Date'}\n"
-        output += "-" * 50 + "\n"
+        output += f"{'ProductID':<10} {'Qty':<5} {'Total($)':<10} {'Date':<20} {'User'}\n"
+        output += "-" * 55 + "\n"
         for row in transactions:
-            pid, qty, total, date = row
-            output += f"{pid:<10} {qty:<5} ${total:<9.2f} {date}\n"
+            pid, qty, total, date, username = row
+            output += f"{pid:<10} {qty:<5} ${total:<9.2f} {date:<20} {username}\n"
         return output
+
+    def generate_sales_chart(self):
+        conn = sqlite3.connect("vending_machine.db")
+        cur = conn.cursor()
+        cur.execute("""
+                    SELECT p.productName, SUM(t.quantity) as total_sold
+                    FROM CartTransactions t
+                             JOIN Products p ON p.productID = t.productID
+                    GROUP BY p.productID
+                    ORDER BY total_sold DESC LIMIT 10
+                    """)
+        data = cur.fetchall()
+        conn.close()
+        if not data:
+            return "No data to plot."
+        names = [row[0] for row in data]
+        values = [row[1] for row in data]
+        fig, ax = plt.subplots(figsize=(10, 6))
+        bars = ax.bar(range(len(names)), values, color='skyblue', alpha=0.7)
+        ax.set_title("Top Selling Products", fontsize=14, fontweight='bold')
+        ax.set_xlabel("Product", fontsize=12)
+        ax.set_ylabel("Units Sold", fontsize=12)
+        ax.set_xticks(range(len(names)))
+        ax.set_xticklabels(names, rotation=45, ha='right')
+        
+        # Add value labels on bars
+        for bar, value in zip(bars, values):
+            height = bar.get_height()
+            ax.text(bar.get_x() + bar.get_width()/2., height + 0.1,
+                   f'{value}', ha='center', va='bottom', fontweight='bold')
+        
+        plt.tight_layout()
+        
+        # Save to bytes buffer
+        buf = BytesIO()
+        fig.savefig(buf, format='png', dpi=100, bbox_inches='tight')
+        plt.close(fig)
+        
+        # Convert to base64
+        img_data = base64.b64encode(buf.getvalue()).decode('utf-8')
+        return img_data
+
+    def update_stock(self, pid, qty):
+        con = sqlite3.connect("vending_machine.db")
+        cur = con.cursor()
+        cur.execute("UPDATE Products SET stock = ? WHERE productID = ?", (qty, pid))
+        con.commit()
+        con.close()
+        self.inventory = self.load_inventory()
+        return "Stock updated successfully."
+
+
+class UserAuth:
+    def __init__(self, username, password):
+        self.username = username
+        self.password = password
+        self.user = (username, password)
+
+    def authentication(self):
+        conn = sqlite3.connect("vending_machine.db")
+        cur = conn.cursor()
+        cur.execute("SELECT 1 FROM Users WHERE username=? AND password=?", (self.username, self.password))
+        return cur.fetchone() is not None
+
+
+
+
+
 

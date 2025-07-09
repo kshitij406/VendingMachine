@@ -2,28 +2,40 @@ from socket import *
 
 class Client:
     def __init__(self):
-        # Server connection details
-        self.HOST = "localhost"          # Server IP address
-        self.PORT = 5556                 # Server port
+        self.HOST = "localhost"
+        self.PORT = 5556
         self.ADDRESS = (self.HOST, self.PORT)
-        self.BUFSIZE = 1024              # Max size of data to receive at once
+        self.BUFSIZE = 1024
+        self.client = None
 
-        self.initialize_client_socket()  # Connect to the server
-
-    def initialize_client_socket(self):
-        # Create a socket and connect to the server
+    def connect(self):
         self.client = socket(AF_INET, SOCK_STREAM)
         self.client.connect(self.ADDRESS)
 
     def send_command(self, command):
-        try:
-            # Send command to the server
-            self.client.send(command.encode("utf-8"))
-
-            # Receive response from server
-            response = self.client.recv(self.BUFSIZE).decode("utf-8")
+        if not self.client:
+            raise ConnectionError("Client not connected")
+        self.client.send(command.encode("utf-8"))
+        return self.client.recv(self.BUFSIZE).decode("utf-8")
+    
+    def send_command_large(self, command):
+        """Send command and receive large data (like chart images)"""
+        if not self.client:
+            raise ConnectionError("Client not connected")
+        self.client.send(command.encode("utf-8"))
+        response = self.client.recv(self.BUFSIZE).decode("utf-8")
+        if response.startswith("CHART_SIZE:"):
+            # Handle large chart data
+            size = int(response.split(":")[1])
+            self.client.send("READY".encode("utf-8"))  # Acknowledgment
+            
+            # Receive the chart data in chunks
+            chart_data = b""
+            while len(chart_data) < size:
+                chunk = self.client.recv(min(self.BUFSIZE, size - len(chart_data)))
+                if not chunk:
+                    break
+                chart_data += chunk
+            return chart_data.decode("utf-8")
+        else:
             return response
-
-        except Exception as e:
-            # Return error message if something goes wrong
-            return f"Error: {e}"
