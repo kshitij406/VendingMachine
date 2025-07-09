@@ -1,8 +1,9 @@
-from socket import *
+import sqlite3
 import threading
 import traceback
-import sqlite3
-from backend import VendingMachine, Cart, UserAuth
+from socket import AF_INET, SOCK_STREAM, socket
+
+from backend import VendingMachine, Cart, UserAuth  # Custom modules
 
 class Server:
     def __init__(self):
@@ -12,6 +13,7 @@ class Server:
         self.BUFSIZE = 1024
         self.initialize_server_socket()
 
+    # Initialize the server socket and start listening for connections
     def initialize_server_socket(self):
         try:
             self.server_socket = socket(AF_INET, SOCK_STREAM)
@@ -22,8 +24,10 @@ class Server:
             print(f"[!] Server failed to start: {e}")
             exit()
 
+    # Handles client communication after connection
     def handle_client(self, client_socket, client_address):
         print(f"[+] Connected to {client_address}")
+
         inventory = VendingMachine()
         inventory.load_inventory()
         cart = Cart()
@@ -35,6 +39,7 @@ class Server:
         user_flag = login.authentication()
         client_socket.send(str(user_flag).encode('utf-8'))
 
+        # If authentication fails, allow client to exit gracefully
         if not user_flag:
             try:
                 possible_exit = client_socket.recv(self.BUFSIZE).decode().strip()
@@ -51,10 +56,12 @@ class Server:
             while True:
                 request = client_socket.recv(self.BUFSIZE).decode().strip()
 
+                # View available products
                 if request.lower().startswith("view"):
                     message = inventory.display_products()
                     client_socket.send(message.encode("utf-8"))
 
+                # Add product to cart
                 elif request.lower().startswith("add"):
                     try:
                         _, pid, qty = request.split()
@@ -65,33 +72,56 @@ class Server:
                     except Exception:
                         client_socket.send("Invalid ADD format. Use: ADD <product_id> <quantity>\n".encode("utf-8"))
 
+                # Remove product from cart
+                elif request.lower().startswith("remove"):
+                    try:
+                        _, pid, qty = request.split()
+                        pid = int(pid)
+                        qty = int(qty)
+                        message = cart.remove_item(pid, qty, inventory.inventory)
+                        client_socket.send(message.encode("utf-8"))
+                    except Exception:
+                        client_socket.send("Invalid REMOVE format. Use: REMOVE <product_id> <quantity>\n".encode("utf-8"))
+
+                # View cart contents
                 elif request.lower().startswith("cart"):
                     cart_details = cart.view_items()
                     client_socket.send(cart_details.encode("utf-8"))
 
+                # Generate receipt
                 elif request.lower().startswith("receipt"):
-                    receipt = inventory.generate_receipt(cart)
-                    client_socket.send(receipt.encode("utf-8"))
+                    if cart.cart:
+                        receipt = inventory.generate_receipt(cart)
+                        client_socket.send(receipt.encode("utf-8"))
+                    else:
+                        client_socket.send("Empty".encode("utf-8"))
 
+                # Checkout and finalize transaction
                 elif request.lower().startswith("checkout"):
-                    checkout = inventory.checkout(cart, username)
-                    client_socket.send(checkout.encode('utf-8'))
+                    if cart.cart:
+                        checkout = inventory.checkout(cart, username)
+                        client_socket.send(checkout.encode('utf-8'))
+                    else:
+                        client_socket.send("The cart is empty. Cannot proceed with checkout.".encode("utf-8"))
 
+                # View order history
                 elif request.lower().startswith("history"):
                     history = inventory.get_transaction_history()
                     client_socket.send(history.encode('utf-8'))
 
+                # Send chart image data (as base64 string)
                 elif request.lower().startswith("chart"):
                     chart_data = inventory.generate_sales_chart()
                     if chart_data and chart_data != "No data to plot.":
                         chart_data_bytes = chart_data.encode("utf-8")
                         size = len(chart_data_bytes)
                         client_socket.send(f"CHART_SIZE:{size}".encode("utf-8"))
-                        client_socket.recv(self.BUFSIZE)
+                        client_socket.recv(self.BUFSIZE)  # Wait for 'READY'
                         client_socket.sendall(chart_data_bytes)
                     else:
                         client_socket.send("NO_CHART".encode("utf-8"))
 
+                # Change product stock
                 elif request.upper().startswith("CHANGE_STOCK"):
                     try:
                         _, pid, qty = request.split()
@@ -100,9 +130,9 @@ class Server:
                         inventory.update_stock(pid, qty)
                         client_socket.send(f"Stock updated for Product ID {pid} to {qty}.".encode("utf-8"))
                     except Exception as e:
-                        client_socket.send(
-                            f"Error updating stock: {e}".encode("utf-8"))
+                        client_socket.send(f"Error updating stock: {e}".encode("utf-8"))
 
+                # Disconnect the client
                 elif request.lower() == "exit":
                     try:
                         client_socket.send("Goodbye!".encode("utf-8"))
@@ -110,15 +140,14 @@ class Server:
                         print(f"[!] Client {client_address} disconnected before goodbye message.")
                     break
 
+                # Invalid or unsupported command
                 else:
                     client_socket.send("Invalid command.".encode("utf-8"))
 
         except ConnectionResetError:
             print(f"[!] Client {client_address} disconnected unexpectedly.")
-            return
         except ConnectionAbortedError:
             print(f"[!] Connection aborted by client {client_address}.")
-            return
         except Exception as e:
             print(f"[!] Error with {client_address}: {e}")
             traceback.print_exc()
@@ -126,6 +155,7 @@ class Server:
             client_socket.close()
             print(f"[-] Disconnected from {client_address}")
 
+    # Accept client connections and assign each to a separate thread
     def run(self):
         while True:
             client, client_address = self.server_socket.accept()
@@ -134,6 +164,7 @@ class Server:
             thread.start()
             print(f"[=] Active Connections: {threading.active_count() - 1}")
 
+# Start the server
 if __name__ == "__main__":
     server = Server()
     server.run()
