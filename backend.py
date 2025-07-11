@@ -1,9 +1,4 @@
 import sqlite3
-import matplotlib.pyplot as plt
-import matplotlib
-matplotlib.use('Agg')  # Use non-GUI backend for generating plots in background
-import base64
-from io import BytesIO
 
 # Represents a product with id, name, price, and available stock
 class Product:
@@ -172,14 +167,12 @@ class VendingMachine:
         conn = sqlite3.connect("vending_machine.db")
         cur = conn.cursor()
         cur.execute("""
-            SELECT productID, quantity, totalPrice, transactionDate, username
-            FROM CartTransactions
-            ORDER BY transactionDate DESC
-            LIMIT 20
-        """)
+                    SELECT productID, quantity, totalPrice, transactionDate, username
+                    FROM CartTransactions
+                    ORDER BY transactionDate DESC LIMIT 20
+                    """)
         transactions = cur.fetchall()
         conn.close()
-
         if not transactions:
             return "No previous transactions found."
 
@@ -191,47 +184,6 @@ class VendingMachine:
             output += f"{pid:<10} {qty:<5} ${total:<9.2f} {date:<20} {username}\n"
         return output
 
-    # Generate a sales chart (top 10 products) and return as base64 image
-    def generate_sales_chart(self):
-        conn = sqlite3.connect("vending_machine.db")
-        cur = conn.cursor()
-        cur.execute("""
-            SELECT p.productName, SUM(t.quantity) as total_sold
-            FROM CartTransactions t
-            JOIN Products p ON p.productID = t.productID
-            GROUP BY p.productID
-            ORDER BY total_sold DESC LIMIT 10
-        """)
-        data = cur.fetchall()
-        conn.close()
-
-        if not data:
-            return "No data to plot."
-
-        names = [row[0] for row in data]
-        values = [row[1] for row in data]
-
-        fig, ax = plt.subplots(figsize=(10, 6))
-        bars = ax.bar(range(len(names)), values, color='skyblue', alpha=0.7)
-        ax.set_title("Top Selling Products", fontsize=14, fontweight='bold')
-        ax.set_xlabel("Product", fontsize=12)
-        ax.set_ylabel("Units Sold", fontsize=12)
-        ax.set_xticks(range(len(names)))
-        ax.set_xticklabels(names, rotation=45, ha='right')
-
-        for bar, value in zip(bars, values):
-            height = bar.get_height()
-            ax.text(bar.get_x() + bar.get_width()/2., height + 0.1,
-                    f'{value}', ha='center', va='bottom', fontweight='bold')
-
-        plt.tight_layout()
-
-        buf = BytesIO()
-        fig.savefig(buf, format='png', dpi=100, bbox_inches='tight')
-        plt.close(fig)
-
-        img_data = base64.b64encode(buf.getvalue()).decode('utf-8')
-        return img_data
 
 # Handles user login authentication
 class UserAuth:

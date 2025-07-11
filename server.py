@@ -1,4 +1,3 @@
-import sqlite3
 import threading
 import traceback
 from socket import AF_INET, SOCK_STREAM, socket
@@ -108,18 +107,6 @@ class Server:
                 elif request.lower().startswith("history"):
                     history = inventory.get_transaction_history()
                     client_socket.send(history.encode('utf-8'))
-
-                # Send chart image data (as base64 string)
-                elif request.lower().startswith("chart"):
-                    chart_data = inventory.generate_sales_chart()
-                    if chart_data and chart_data != "No data to plot.":
-                        chart_data_bytes = chart_data.encode("utf-8")
-                        size = len(chart_data_bytes)
-                        client_socket.send(f"CHART_SIZE:{size}".encode("utf-8"))
-                        client_socket.recv(self.BUFSIZE)  # Wait for 'READY'
-                        client_socket.sendall(chart_data_bytes)
-                    else:
-                        client_socket.send("NO_CHART".encode("utf-8"))
 
                 # Change product stock
                 elif request.upper().startswith("CHANGE_STOCK"):

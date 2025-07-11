@@ -30,33 +30,3 @@ class Client:
         self.client.send(command.encode("utf-8"))
         return self.client.recv(self.BUFSIZE).decode("utf-8")
 
-    def send_command_large(self, command):
-        """
-        Send a command that expects large response data (e.g., base64-encoded chart).
-
-        Args:
-            command (str): Command to send.
-        Returns:
-            str: Full decoded response from server.
-        """
-        if not self.client:
-            raise ConnectionError("Client not connected")
-
-        self.client.send(command.encode("utf-8"))
-        response = self.client.recv(self.BUFSIZE).decode("utf-8")
-
-        if response.startswith("CHART_SIZE:"):
-            # Parse expected byte size
-            size = int(response.split(":")[1])
-            self.client.send("READY".encode("utf-8"))  # Acknowledge readiness
-
-            # Receive full chart data
-            chart_data = b""
-            while len(chart_data) < size:
-                chunk = self.client.recv(min(self.BUFSIZE, size - len(chart_data)))
-                if not chunk:
-                    break
-                chart_data += chunk
-            return chart_data.decode("utf-8")
-        else:
-            return response
