@@ -1,4 +1,5 @@
 import os
+import time
 import tkinter as tk
 from tkinter import simpledialog, messagebox, ttk
 from PIL import Image, ImageTk
@@ -6,15 +7,17 @@ import sqlite3
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
-# Assuming 'client.py' exists and is correctly implemented
+
 from client import Client
 
-# --- CORE APPLICATION LOGIC (Login and Server Communication are unchanged) ---
+# CORE APPLICATION LOGIC
 
+# Handles login dialog and authentication with the server
 def login_prompt(max_attempts=3):
     global client, username
     attempts = 0
     temp_client = Client()
+    # Attempt to connect to the server before prompting login
     try:
         temp_client.connect()
     except Exception as e:
@@ -24,6 +27,7 @@ def login_prompt(max_attempts=3):
     login_root = tk.Tk()
     login_root.withdraw()
 
+    # Loop to allow multiple login attempts
     while attempts < max_attempts:
         username = simpledialog.askstring("Login", "Enter username:", parent=login_root)
         if username is None:
@@ -43,6 +47,7 @@ def login_prompt(max_attempts=3):
         temp_client.client.send(password.encode("utf-8"))
         auth = temp_client.client.recv(temp_client.BUFSIZE).decode().strip()
 
+        # Check if authentication was successful
         if auth == "True":
             messagebox.showinfo("Login", "Login successful!", parent=login_root)
             login_root.destroy()
@@ -59,6 +64,7 @@ def login_prompt(max_attempts=3):
     login_root.destroy()
     return False
 
+# Sends a command to the server, retries if response seems incomplete or corrupted
 def send_command_safe(command):
     try:
         if client is None:
@@ -66,8 +72,9 @@ def send_command_safe(command):
 
         response = client.send_command(command)
 
-        # 🛡️ If response is suspicious (chart noise), retry once
-        if "PNG" in response or response.count("\n") < 2 or "IDAT" in response:
+        # Retry logic for suspicious responses
+        if command.strip().upper() in ["CHART", "HISTORY"] and (
+                "PNG" in response or "IDAT" in response or response.count("\n") < 2):
             print("[WARN] Suspected corrupted response, retrying...")
             response = client.send_command(command)
 
@@ -78,6 +85,7 @@ def send_command_safe(command):
         on_closing()
         return f"Error sending command: {e}"
 
+# Attempts to locate an image file for the given product ID
 def find_image_file(product_id):
     base_path = "images"
     for ext in [".png", ".jpg", ".jpeg", ".webp"]:
@@ -86,9 +94,10 @@ def find_image_file(product_id):
             return img_path
     return None
 
-# --- GUI FUNCTIONS (UI/UX Refactored) ---
+# GUI FUNCTIONS
+
+# Displays all available products in the GUI with "Add to Cart" option
 def view_products():
-    """Displays all products with an option to add them to the cart."""
     show_products_view()
     product_canvas_container.pack_forget()
     product_canvas_container.pack(fill="both", expand=True)
@@ -96,7 +105,7 @@ def view_products():
 
     response = send_command_safe("VIEW")
 
-    # 🛡️ Validate proper format before trying to parse
+    # Validate proper format before trying to parse
     if not response or "ProductID" not in response or "Price" not in response:
         ttk.Label(product_frame, text="⚠️ Failed to load product list.",
                   font=("Segoe UI", 14), style="Header.TLabel").pack(pady=20)
@@ -108,19 +117,19 @@ def view_products():
         if not line.strip():
             continue
         try:
-            parts = line.split()
+            parts = line.strip().split()
             pid = int(parts[0])
-            name = " ".join(parts[1:-2])
-            price = parts[-2]
             stock = parts[-1]
+            price = parts[-2]
+            name = " ".join(parts[1:-2])
         except (ValueError, IndexError):
-            continue  # 🧯 skip malformed lines
+            continue  # skip malformed lines
 
         item_frame = ttk.Frame(product_frame, padding=10, relief="solid", borderwidth=1, style="Card.TFrame")
         item_frame.pack(padx=10, pady=6, fill="x")
         item_frame.columnconfigure(1, weight=1)
 
-        # Product Image
+        # Load product image if available
         img_path = find_image_file(pid)
         img_label = ttk.Label(item_frame, style="Card.TLabel")
         if img_path:
@@ -135,11 +144,11 @@ def view_products():
         img_label.grid(row=0, column=0, rowspan=2, padx=(0, 15), sticky="w")
 
         # Product Details
-        details_text = f"{name}\nPrice: {price} | Stock: {stock}"
+        details_text = f"{name}\nPrice: ${price} | Stock: {stock}"
         ttk.Label(item_frame, text=details_text, font=("Segoe UI", 11), style="Card.TLabel", justify="left")\
             .grid(row=0, column=1, rowspan=2, sticky="w")
 
-        # Action Frame (for quantity and button)
+        # Add entry field and button for selecting quantity
         action_frame = ttk.Frame(item_frame, style="Card.TFrame")
         action_frame.grid(row=0, column=2, rowspan=2, sticky="e")
 
@@ -154,7 +163,9 @@ def view_products():
                 return
             result = send_command_safe(f"ADD {p} {quantity}")
             messagebox.showinfo("Info", result)
-            view_products()
+
+            if "added to cart" in result.lower():
+                view_products()
 
         add_btn = ttk.Button(action_frame, text="Add to Cart", command=add_func)
         add_btn.pack(side="left", padx=5)
@@ -163,8 +174,8 @@ def view_products():
     canvas.configure(scrollregion=canvas.bbox("all"))
     canvas.yview_moveto(0)
 
+# Displays current items in the user's cart with remove option
 def view_cart():
-    """Displays items currently in the user's cart."""
     show_products_view()
     product_canvas_container.pack_forget()
     product_canvas_container.pack(fill="both", expand=True)
@@ -172,8 +183,8 @@ def view_cart():
 
     response = send_command_safe("CART")
 
-    # 🛡️ Protect against wrong format / polluted history data
-    if "Cart is empty." in response or "Cart:" not in response:
+    # Handle case where cart has no items
+    if "Cart is empty." in response:
         ttk.Label(product_frame, text="Your cart is empty. 🛒",
                   font=("Segoe UI", 14), style="Header.TLabel").pack(pady=20)
         return
@@ -195,16 +206,16 @@ def view_cart():
             total_price = parts[-2]
             qty = parts[-1]
         except (ValueError, IndexError):
-            continue  # 🧯 Don’t crash on garbage data
+            continue  # Don’t crash on garbage data
 
         item_frame = ttk.Frame(product_frame, padding=10, relief="solid", borderwidth=1, style="Card.TFrame")
         item_frame.pack(padx=10, pady=6, fill="x")
         item_frame.columnconfigure(0, weight=1)
-
         info = f"{name}\nQuantity: {qty} | Total: {total_price}"
         ttk.Label(item_frame, text=info, font=("Segoe UI", 11), justify="left", style="Card.TLabel").grid(
             row=0, column=0, sticky="w")
 
+        # Removes specified quantity of item from cart
         def remove_func(p=pid, q=qty):
             result = send_command_safe(f"REMOVE {p} {q}")
             messagebox.showinfo("Removed", result)
@@ -225,10 +236,10 @@ def clear_product_frame():
     chart_holder = None
     canvas.yview_moveto(0)
 
-# --- USER-PROVIDED CHARTING & HISTORY FUNCTIONS ---
+# HISTORY WINDOW (ADMIN ACCESS ONLY)
 
+# Embeds a matplotlib chart into the provided frame
 def render_matplotlib_chart(fig, holder):
-    """Renders a matplotlib figure into a specified holder frame."""
     for widget in holder.winfo_children():
         widget.destroy()
 
@@ -239,13 +250,14 @@ def render_matplotlib_chart(fig, holder):
 
     holder.update_idletasks()
 
+# Creates a chart based on selected type and product ID
 def generate_chart(chart_type, product_id, holder):
-    """Generates and displays a chart based on user selection into given holder."""
     try:
         conn = sqlite3.connect("vending_machine.db")
         cur = conn.cursor()
         fig, ax = plt.subplots(figsize=(8, 5))
 
+        # Generate a bar chart of best-selling products
         if chart_type == "Top 10 Selling Products":
             cur.execute("""
                         SELECT p.productName, SUM(t.quantity)
@@ -265,6 +277,7 @@ def generate_chart(chart_type, product_id, holder):
             ax.set_ylabel("Units Sold")
             plt.setp(ax.get_xticklabels(), rotation=45, ha='right')
 
+        # Generate a line chart showing sales over time for a product
         elif chart_type == "Stock Trend":
             product_id = product_id.strip()
             if not product_id or not product_id.isdigit():
@@ -302,6 +315,7 @@ def generate_chart(chart_type, product_id, holder):
         if 'conn' in locals():
             conn.close()
 
+# Opens a window showing transaction history and analytics chart options
 def view_history():
     """Admin function to view transaction history and generate sales charts"""
     hist_win = tk.Toplevel(root)
@@ -362,8 +376,8 @@ def view_history():
                generate_chart(chart_type_var.get(), product_id_entry.get(), local_chart_holder))\
         .pack(side="left", padx=10)
 
+# Allows admin to modify product stock quantities from GUI
 def edit_stock():
-    """Admin function to update product stock quantities."""
     show_products_view()
     product_canvas_container.pack_forget()
     product_canvas_container.pack(fill="both", expand=True)
@@ -434,9 +448,11 @@ def edit_stock():
     canvas.configure(scrollregion=canvas.bbox("all"))
     canvas.yview_moveto(0)
 
+# Opens confirmation window and handles final purchase
 def checkout():
-    """Initiates the checkout process in a new window."""
     receipt = send_command_safe("RECEIPT")
+
+    # Check if cart is empty or receipt is malformed
     if not receipt or "ProductID" not in receipt or "Cart is empty" in receipt or "Your cart is empty" in receipt:
         messagebox.showinfo("Cart Empty", "Your cart is empty. Cannot proceed to checkout.")
         return
@@ -463,6 +479,7 @@ def checkout():
     button_frame = ttk.Frame(main_frame)
     button_frame.pack(pady=10)
 
+    # Handles checkout confirmation, updates inventory, clears cart
     def confirm_action():
         response = send_command_safe("CHECKOUT")
         for widget in main_frame.winfo_children():
@@ -505,18 +522,35 @@ def checkout():
                                                                                                             column=1,
                                                                                                             padx=10)
 
-# --- GUI HELPER FUNCTIONS ---
+# Changes the display currency and refreshes product prices
+def send_currency():
+    selected_currency = currency_var.get()
+    response = send_command_safe(f"CURRENCY {selected_currency}")
 
+    if "Currency changed" in response:
+        messagebox.showinfo("Currency Changed", response)
+        time.sleep(0.1)
+        view_products()
+    elif "Failed" in response:
+        messagebox.showerror("Currency Error", response)
+    else:
+        messagebox.showerror("Unexpected Response", f"Unexpected: {response}")
+
+# GUI HELPER FUNCTIONS
+
+# Clears all product widgets from display
 def clear_product_frame():
     """Destroys all widgets inside the main product frame."""
     for widget in product_frame.winfo_children():
         widget.destroy()
 
+# Clears main text display panel
 def clear_display():
     """Clears the main text display."""
     show_text_display()
     update_display("")
 
+# Replaces content in the text display panel
 def update_display(text):
     """Updates the main text display with new content."""
     text_display.config(state='normal')
@@ -524,16 +558,19 @@ def update_display(text):
     text_display.insert(tk.END, text)
     text_display.config(state='disabled')
 
+# Switches GUI to product browsing layout
 def show_products_view():
     """Switches the view to show the product list."""
     text_display_container.pack_forget()
     product_canvas_container.pack(fill="both", expand=True)
 
+# Switches GUI to text display panel
 def show_text_display():
     """Switches the view to show the text display."""
     product_canvas_container.pack_forget()
     text_display_container.pack(fill="both", expand=True, padx=20, pady=20)
 
+# Gracefully disconnects from server and closes the application
 def on_closing():
     if messagebox.askokcancel("Quit", "Do you want to exit?"):
         try:
@@ -544,10 +581,12 @@ def on_closing():
             print(f"Error on closing: {e}")  # Log error, but close anyway
         root.destroy()
 
-# ===================================================================
-# --- APPLICATION START ---
-# ===================================================================
 
+
+# --- APPLICATION START ---
+
+
+# Entry point to start the GUI application
 if __name__ == "__main__":
     client = None
     username = None
@@ -556,13 +595,14 @@ if __name__ == "__main__":
     if not login_prompt():
         exit()
 
+    # Initialize main application window
     root = tk.Tk()
     root.title("Smart Vending Machine Client")
     root.geometry("1100x800")
     root.configure(bg="#e9ecef")
     root.minsize(900, 700)
 
-    # --- STYLE CONFIGURATION ---
+    # Configure custom UI styles
     style = ttk.Style()
     style.theme_use('clam')
     style.configure("TButton", padding=8, relief="flat", font=("Segoe UI", 10, "bold"), foreground="white",
@@ -577,17 +617,17 @@ if __name__ == "__main__":
     style.configure("Header.TFrame", background="#f7f7fc")
     style.configure("Header.TLabel", background="#f7f7fc", foreground="#333")
 
-    # --- MAIN CONTENT AREA (for swapping views) ---
+    # MAIN CONTENT AREA (for swapping views)
     content_area = ttk.Frame(root, padding=10)
     content_area.pack(fill="both", expand=True)
 
-    # --- 1. Text Display View ---
+    # 1. Text Display View
     text_display_container = ttk.Frame(content_area)
     text_display = tk.Text(text_display_container, wrap="word", font=("Segoe UI", 11), bg="#ffffff", relief="solid",
                            bd=1, padx=15, pady=15)
     text_display.pack(fill="both", expand=True)
 
-    # --- 2. Products/Scrollable View ---
+    # 2. Products/Scrollable View
     product_canvas_container = ttk.Frame(content_area)
     canvas = tk.Canvas(product_canvas_container, bg="#f7f7fc", highlightthickness=0)
     scrollbar = ttk.Scrollbar(product_canvas_container, orient="vertical", command=canvas.yview)
@@ -600,23 +640,32 @@ if __name__ == "__main__":
     canvas.pack(side="left", fill="both", expand=True)
     scrollbar.pack(side="right", fill="y")
 
-    # --- BOTTOM BUTTON BAR ---
+    # BOTTOM BUTTON BAR
+    # Dropdown to select target currency
+    currency_var = tk.StringVar(root)
+    currency_var.set("USD")
+    currency_options = ["USD", "MUR", "GBP", "INR"]
+    currency_dropdown = tk.OptionMenu(root, currency_var, *currency_options)
+    currency_dropdown.pack(pady=10)
+    tk.Button(root, text="Set Currency", command=send_currency).pack(pady=5)
+
+    # Action buttons for product view, cart, admin tools, etc.
     button_frame = ttk.Frame(root, padding=(10, 15))
     button_frame.pack(fill="x")
 
-    ttk.Button(button_frame, text="🛍️ View Products", command=view_products).pack(side="left", padx=5, expand=True)
-    ttk.Button(button_frame, text="🛒 View Cart", command=view_cart).pack(side="left", padx=5, expand=True)
+    ttk.Button(button_frame, text="View Products", command=view_products).pack(side="left", padx=5, expand=True)
+    ttk.Button(button_frame, text="View Cart", command=view_cart).pack(side="left", padx=5, expand=True)
     if username == "admin":
-        ttk.Button(button_frame, text="📈 History & Analytics", command=view_history).pack(side="left", padx=5,
+        ttk.Button(button_frame, text="History & Analytics", command=view_history).pack(side="left", padx=5,
                                                                                           expand=True)
-        ttk.Button(button_frame, text="📦 Edit Stock", command=edit_stock).pack(side="left", padx=5, expand=True)
-    ttk.Button(button_frame, text="💳 Checkout", command=checkout).pack(side="left", padx=5, expand=True)
-    ttk.Button(button_frame, text="✨ Clear", command=clear_display).pack(side="left", padx=5, expand=True)
-    ttk.Button(button_frame, text="🚪 Exit", command=on_closing, style="Danger.TButton").pack(side="left", padx=5,
+        ttk.Button(button_frame, text="Edit Stock", command=edit_stock).pack(side="left", padx=5, expand=True)
+    ttk.Button(button_frame, text="Checkout", command=checkout).pack(side="left", padx=5, expand=True)
+    ttk.Button(button_frame, text="Clear", command=clear_display).pack(side="left", padx=5, expand=True)
+    ttk.Button(button_frame, text="Exit", command=on_closing, style="Danger.TButton").pack(side="left", padx=5,
                                                                                              expand=True)
 
-    # --- INITIAL STATE ---
     root.protocol("WM_DELETE_WINDOW", on_closing)
+    # Display welcome message after successful login
     greeting = f"""Welcome, {username}!\n\nClick 'View Products' to start Browse or select another option below."""
     show_text_display()
     update_display(greeting)

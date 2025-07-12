@@ -1,4 +1,7 @@
 import sqlite3
+import requests
+from bs4 import BeautifulSoup
+import re
 
 # Represents a product with id, name, price, and available stock
 class Product:
@@ -11,10 +14,10 @@ class Product:
     def __str__(self):
         return f"Product: {self.name}, Price: ${self.price:.2f}, Stock: {self.stock}"
 
-# Handles operations related to shopping cart
+# Handles operations related to the shopping cart
 class Cart:
     def __init__(self):
-        # Cart items: key = productID, value = Product object holding quantity and total price
+        # Cart items: key = productID, value = Product object holding quantity and unit price
         self.cart = {}
 
     # Add a product to the cart if stock is sufficient
@@ -26,13 +29,12 @@ class Cart:
                 product.stock -= quantity  # Decrement from inventory stock
 
                 if product_id not in self.cart:
-                    # Store new item in cart
-                    self.cart[product_id] = Product(product_id, product.name, product.price * quantity, quantity)
+                    # Store new item in cart with unit price
+                    self.cart[product_id] = Product(product_id, product.name, product.price, quantity)
                 else:
                     # Update existing item in cart
                     existing = self.cart[product_id]
-                    existing.stock += quantity
-                    existing.price += product.price * quantity
+                    existing.stock += quantity  # stock = quantity in cart
 
                 return f"{quantity} units of '{product.name}' added to cart."
             else:
@@ -40,7 +42,7 @@ class Cart:
         else:
             return f"Product ID '{product_id}' does not exist."
 
-    # Remove a quantity of item from cart, and restore to inventory
+    # Remove a quantity of item from cart, and restore it to inventory
     def remove_item(self, product_id, quantity, inventory):
         if product_id not in self.cart:
             return f"Product ID '{product_id}' is not in the cart."
@@ -52,26 +54,28 @@ class Cart:
             del self.cart[product_id]
         else:
             cart_item.stock -= quantity
-            cart_item.price -= inventory[product_id].price * quantity
             removed_quantity = quantity
 
-        inventory[product_id].stock += removed_quantity
+        inventory[product_id].stock += removed_quantity  # Restore to inventory
         return f"{removed_quantity} units of '{inventory[product_id].name}' removed from cart."
 
-    # Display the cart contents
-    def view_items(self):
+    # Display the contents of the cart
+    def view_items(self, rate=1.0, currency="USD"):
         if not self.cart:
             return "Cart is empty."
-        output = "Cart:\n"
+        output = f"Cart (Prices in {currency.upper()}):\n"
         output += f"{'ProductID':<10} {'Name':<30} {'Total':<10} {'Qty':<6}\n"
         output += "-" * 50 + "\n"
         for pid, product in self.cart.items():
-            output += f"{pid:<10} {product.name:<30} ${product.price:<9.2f} {product.stock:<6}\n"
+            converted = product.price * product.stock * rate  # Total = unit price × quantity × exchange rate
+            output += f"{pid:<10} {product.name:<30} {currency.upper()}{converted:<9.2f} {product.stock:<6}\n"
         return output
 
+    # Calculate total price of items in cart (without currency conversion)
     def calculate_total(self):
-        return sum(product.price for product in self.cart.values())
+        return sum(product.price * product.stock for product in self.cart.values())
 
+    # Empty the cart
     def clear_cart(self):
         if self.cart:
             self.cart.clear()
@@ -79,35 +83,57 @@ class Cart:
         else:
             print("The cart is already empty.")
 
-# Manages the vending machine: inventory, transactions, database interaction
+# Manages inventory, transactions, and currency conversions
 class VendingMachine:
-    def __init__(self):
+    def __init__(self, currency="usd"):
+        self.default_currency = "usd"
+        self.target_currency = currency
+        self.rate = self.get_currency_exchange()
         self.inventory = self.load_inventory()
 
-    # Load all products from the SQLite DB into memory
+    # Get exchange rate from USD to target currency
+    def get_currency_exchange(self):
+        if self.target_currency != "usd":
+            url = f"https://exchangerate.guru/{self.default_currency}/{self.target_currency}"
+            response = requests.get(url)
+            soup = BeautifulSoup(response.text, 'html.parser')
+            article = soup.find("article", class_="conversion-essense")
+            rate_paragraph = article.find("p").text.strip()
+            match = re.search(r"=\s*([\d.]+)", rate_paragraph)
+            if match:
+                return float(match.group(1))
+            print("Rate not found")
+            return 1
+        return 1
+
+    # Load inventory from database into a dictionary of Product objects
     def load_inventory(self):
         conn = sqlite3.connect("vending_machine.db")
         cur = conn.cursor()
         cur.execute("SELECT * FROM Products")
         products = cur.fetchall()
         conn.close()
-
         inventory = {}
         for product in products:
             pid, name, price, stock = product
             inventory[pid] = Product(pid, name, float(price), int(stock))
         return inventory
 
-    # Display all available products with formatting
-    def display_products(self):
+    # Reload the latest inventory from database
+    def refresh_inventory(self):
         self.inventory = self.load_inventory()
-        message = f"{'ProductID':<10} {'Name':<30} {'Price':<10} {'Stock':<6}\n"
+
+    # Display all available products with currency conversion applied
+    def display_products(self):
+        self.refresh_inventory()
+        message = f"{'ProductID':<10} {'Name':<30} {'Price':<15} {'Stock':<6}\n"
         message += "-" * 70 + "\n"
         for pid, product in self.inventory.items():
-            message += f"{pid:<10} {product.name:<30} ${product.price:<9.2f} {product.stock:<6}\n"
+            converted_price = product.price * self.rate
+            message += f"{pid:<10} {product.name:<30} ({self.target_currency.upper()}) {converted_price:<9.2f} {product.stock:<6}\n"
         return message
 
-    # Generate a receipt from cart items
+    # Create a receipt string from the cart contents
     def generate_receipt(self, cart):
         receipt = "\n" + "=" * 80 + "\n"
         receipt += " " * 12 + "PURCHASE RECEIPT\n"
@@ -115,31 +141,30 @@ class VendingMachine:
         receipt += f"{'ProductID':<10} {'Name':<15} {'Qty':<5} {'Total':<8}\n"
         receipt += "-" * 40 + "\n"
         for pid, product in cart.cart.items():
-            receipt += f"{pid:<10} {product.name:<15} {product.stock:<5} ${product.price:<7.2f}\n"
+            converted_price = product.price * self.rate
+            receipt += f"{pid:<10} {product.name:<15} {product.stock:<5} {self.target_currency.upper()}{converted_price:<7.2f}\n"
         receipt += "-" * 40 + "\n"
-        receipt += f"{'TOTAL':>32} : ${cart.calculate_total():.2f}\n"
+        total = cart.calculate_total() * self.rate
+        receipt += f"{'TOTAL':>32} : {self.target_currency.upper()}{total:.2f}\n"
         receipt += "=" * 40 + "\n"
         receipt += "Thank you for your purchase!\n"
         receipt += "=" * 40 + "\n"
         return receipt
 
-    # Handle final checkout: update stock in DB, record transaction, clear cart
+    # Finalize checkout: update inventory, save transaction, clear cart
     def checkout(self, cart, username):
         conn = sqlite3.connect("vending_machine.db")
         cur = conn.cursor()
-
         for pid, item in cart.cart.items():
             cur.execute("UPDATE Products SET stock = stock - ? WHERE productID = ?", (item.stock, pid))
-
         conn.commit()
         conn.close()
-
         self.inventory = self.load_inventory()
         self.save_transactions(cart, username)
         cart.clear_cart()
         return "\nPurchase completed and saved!"
 
-    # Update product stock (used as utility method)
+    # Manually update product stock
     def update_stock(self, pid, qty):
         con = sqlite3.connect("vending_machine.db")
         cur = con.cursor()
@@ -149,7 +174,7 @@ class VendingMachine:
         self.inventory = self.load_inventory()
         return "Stock updated successfully."
 
-    # Save transactions from cart into CartTransactions table
+    # Save a record of the current cart transaction to the database
     def save_transactions(self, cart, username):
         conn = sqlite3.connect("vending_machine.db")
         cur = conn.cursor()
@@ -162,28 +187,27 @@ class VendingMachine:
         conn.close()
         return "Transaction recorded."
 
-    # Retrieve latest transaction history
+    # Retrieve and display recent transaction history
     def get_transaction_history(self):
         conn = sqlite3.connect("vending_machine.db")
         cur = conn.cursor()
         cur.execute("""
-                    SELECT productID, quantity, totalPrice, transactionDate, username
-                    FROM CartTransactions
-                    ORDER BY transactionDate DESC LIMIT 20
-                    """)
+            SELECT productID, quantity, totalPrice, transactionDate, username
+            FROM CartTransactions
+            ORDER BY transactionDate DESC LIMIT 20
+        """)
         transactions = cur.fetchall()
         conn.close()
         if not transactions:
             return "No previous transactions found."
-
         output = "\nRecent Transactions:\n"
-        output += f"{'ProductID':<10} {'Qty':<5} {'Total($)':<10} {'Date':<20} {'User'}\n"
+        output += f"{'ProductID':<10} {'Qty':<5} {'Total':<10} {'Date':<20} {'User'}\n"
         output += "-" * 55 + "\n"
         for row in transactions:
             pid, qty, total, date, username = row
-            output += f"{pid:<10} {qty:<5} ${total:<9.2f} {date:<20} {username}\n"
+            converted = total * self.rate
+            output += f"{pid:<10} {qty:<5} {self.target_currency.upper()}{converted:<9.2f} {date:<20} {username}\n"
         return output
-
 
 # Handles user login authentication
 class UserAuth:
@@ -192,6 +216,7 @@ class UserAuth:
         self.password = password
         self.user = (username, password)
 
+    # Check user credentials against Users table
     def authentication(self):
         conn = sqlite3.connect("vending_machine.db")
         cur = conn.cursor()

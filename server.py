@@ -12,7 +12,7 @@ class Server:
         self.BUFSIZE = 1024
         self.initialize_server_socket()
 
-    # Initialize the server socket and start listening for connections
+    # Set up the server socket and begin listening for clients
     def initialize_server_socket(self):
         try:
             self.server_socket = socket(AF_INET, SOCK_STREAM)
@@ -23,22 +23,19 @@ class Server:
             print(f"[!] Server failed to start: {e}")
             exit()
 
-    # Handles client communication after connection
+    # Handle communication with a connected client
     def handle_client(self, client_socket, client_address):
         print(f"[+] Connected to {client_address}")
-
         inventory = VendingMachine()
-        inventory.load_inventory()
         cart = Cart()
 
-        # Authentication
+        # Handle login
         username = client_socket.recv(self.BUFSIZE).decode().strip()
         password = client_socket.recv(self.BUFSIZE).decode().strip()
         login = UserAuth(username, password)
         user_flag = login.authentication()
         client_socket.send(str(user_flag).encode('utf-8'))
 
-        # If authentication fails, allow client to exit gracefully
         if not user_flag:
             try:
                 possible_exit = client_socket.recv(self.BUFSIZE).decode().strip()
@@ -55,23 +52,23 @@ class Server:
             while True:
                 request = client_socket.recv(self.BUFSIZE).decode().strip()
 
-                # View available products
                 if request.lower().startswith("view"):
+                    inventory.refresh_inventory()
                     message = inventory.display_products()
                     client_socket.send(message.encode("utf-8"))
 
-                # Add product to cart
                 elif request.lower().startswith("add"):
+                    inventory.refresh_inventory()
                     try:
                         _, pid, qty = request.split()
                         pid = int(pid)
                         qty = int(qty)
                         message = cart.add_item(pid, qty, inventory.inventory)
                         client_socket.send(message.encode("utf-8"))
-                    except Exception:
+                    except Exception as e:
+                        print(f"[ADD] Failed: {e}")
                         client_socket.send("Invalid ADD format. Use: ADD <product_id> <quantity>\n".encode("utf-8"))
 
-                # Remove product from cart
                 elif request.lower().startswith("remove"):
                     try:
                         _, pid, qty = request.split()
@@ -82,12 +79,10 @@ class Server:
                     except Exception:
                         client_socket.send("Invalid REMOVE format. Use: REMOVE <product_id> <quantity>\n".encode("utf-8"))
 
-                # View cart contents
                 elif request.lower().startswith("cart"):
-                    cart_details = cart.view_items()
+                    cart_details = cart.view_items(rate=inventory.rate, currency=inventory.target_currency)
                     client_socket.send(cart_details.encode("utf-8"))
 
-                # Generate receipt
                 elif request.lower().startswith("receipt"):
                     if cart.cart:
                         receipt = inventory.generate_receipt(cart)
@@ -95,7 +90,6 @@ class Server:
                     else:
                         client_socket.send("Empty".encode("utf-8"))
 
-                # Checkout and finalize transaction
                 elif request.lower().startswith("checkout"):
                     if cart.cart:
                         checkout = inventory.checkout(cart, username)
@@ -103,12 +97,10 @@ class Server:
                     else:
                         client_socket.send("The cart is empty. Cannot proceed with checkout.".encode("utf-8"))
 
-                # View order history
                 elif request.lower().startswith("history"):
                     history = inventory.get_transaction_history()
                     client_socket.send(history.encode('utf-8'))
 
-                # Change product stock
                 elif request.upper().startswith("CHANGE_STOCK"):
                     try:
                         _, pid, qty = request.split()
@@ -119,7 +111,16 @@ class Server:
                     except Exception as e:
                         client_socket.send(f"Error updating stock: {e}".encode("utf-8"))
 
-                # Disconnect the client
+                elif request.lower().startswith("currency"):
+                    try:
+                        _, new_currency = request.split()
+                        inventory.target_currency = new_currency.lower()
+                        inventory.rate = inventory.get_currency_exchange()
+                        client_socket.send(f"Currency changed to {new_currency.upper()}.".encode("utf-8"))
+                    except Exception as e:
+                        print(f"[!] Currency change error: {e}")
+                        client_socket.send("Failed to change currency.".encode("utf-8"))
+
                 elif request.lower() == "exit":
                     try:
                         client_socket.send("Goodbye!".encode("utf-8"))
@@ -127,7 +128,6 @@ class Server:
                         print(f"[!] Client {client_address} disconnected before goodbye message.")
                     break
 
-                # Invalid or unsupported command
                 else:
                     client_socket.send("Invalid command.".encode("utf-8"))
 
@@ -142,7 +142,7 @@ class Server:
             client_socket.close()
             print(f"[-] Disconnected from {client_address}")
 
-    # Accept client connections and assign each to a separate thread
+    # Accept and handle new client connections using threads
     def run(self):
         while True:
             client, client_address = self.server_socket.accept()
@@ -151,7 +151,7 @@ class Server:
             thread.start()
             print(f"[=] Active Connections: {threading.active_count() - 1}")
 
-# Start the server
+# Entry point for server
 if __name__ == "__main__":
     server = Server()
     server.run()
