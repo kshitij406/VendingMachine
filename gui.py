@@ -13,9 +13,8 @@ from client import Client
 # CORE APPLICATION LOGIC
 
 # Handles login dialog and authentication with the server
-def login_prompt(max_attempts=3):
+def login_prompt():
     global client, username
-    attempts = 0
     temp_client = Client()
     # Attempt to connect to the server before prompting login
     try:
@@ -27,38 +26,34 @@ def login_prompt(max_attempts=3):
     login_root = tk.Tk()
     login_root.withdraw()
 
-    # Loop to allow multiple login attempts
-    while attempts < max_attempts:
-        username = simpledialog.askstring("Login", "Enter username:", parent=login_root)
-        if username is None:
-            temp_client.client.send("EXIT".encode())
-            temp_client.client.close()
-            login_root.destroy()
-            return False
+    username = simpledialog.askstring("Login", "Enter username:", parent=login_root)
+    if username is None:
+        temp_client.client.send("EXIT".encode())
+        temp_client.client.close()
+        login_root.destroy()
+        return False
 
-        password = simpledialog.askstring("Login", "Enter password:", show='*', parent=login_root)
-        if password is None:
-            temp_client.client.send("EXIT".encode())
-            temp_client.client.close()
-            login_root.destroy()
-            return False
+    password = simpledialog.askstring("Login", "Enter password:", show='*', parent=login_root)
+    if password is None:
+        temp_client.client.send("EXIT".encode())
+        temp_client.client.close()
+        login_root.destroy()
+        return False
 
-        temp_client.client.send(username.encode("utf-8"))
-        temp_client.client.send(password.encode("utf-8"))
-        auth = temp_client.client.recv(temp_client.BUFSIZE).decode().strip()
+    temp_client.client.send(username.encode("utf-8"))
+    temp_client.client.send(password.encode("utf-8"))
+    auth = temp_client.client.recv(temp_client.BUFSIZE).decode().strip()
 
-        # Check if authentication was successful
-        if auth == "True":
-            messagebox.showinfo("Login", "Login successful!", parent=login_root)
-            login_root.destroy()
-            client = temp_client
-            return True
-        else:
-            attempts += 1
-            messagebox.showerror("Login Failed", f"Invalid credentials. Attempts left: {max_attempts - attempts}",
-                                 parent=login_root)
+    # Check if authentication was successful
+    if auth == "True":
+        messagebox.showinfo("Login", "Login successful!", parent=login_root)
+        login_root.destroy()
+        client = temp_client
+        return True
+    else:
+        messagebox.showerror("Login Failed", f"Invalid credentials.",
+                             parent=login_root)
 
-    messagebox.showwarning("Access Denied", "Too many failed attempts.", parent=login_root)
     temp_client.client.send("EXIT".encode())
     temp_client.client.close()
     login_root.destroy()
@@ -258,13 +253,13 @@ def generate_chart(chart_type, product_id, holder):
         fig, ax = plt.subplots(figsize=(8, 5))
 
         # Generate a bar chart of best-selling products
-        if chart_type == "Top 10 Selling Products":
+        if chart_type == "Top 5 Selling Products":
             cur.execute("""
                         SELECT p.productName, SUM(t.quantity)
                         FROM CartTransactions t
                                  JOIN Products p ON p.productID = t.productID
                         GROUP BY p.productID
-                        ORDER BY SUM(t.quantity) DESC LIMIT 10
+                        ORDER BY SUM(t.quantity) DESC LIMIT 5
                         """)
             data = cur.fetchall()
             if not data:
@@ -273,7 +268,7 @@ def generate_chart(chart_type, product_id, holder):
                 return
             names, values = zip(*data)
             ax.bar(names, values, color='#007bff')
-            ax.set_title("Top 10 Selling Products", fontsize=14)
+            ax.set_title("Top 5 Selling Products", fontsize=14)
             ax.set_ylabel("Units Sold")
             plt.setp(ax.get_xticklabels(), rotation=45, ha='right')
 
@@ -319,7 +314,7 @@ def generate_chart(chart_type, product_id, holder):
 def view_history():
     """Admin function to view transaction history and generate sales charts"""
     hist_win = tk.Toplevel(root)
-    hist_win.title("📜 Transaction History & Analytics")
+    hist_win.title("Transaction History & Analytics")
     hist_win.geometry("1100x700")
     hist_win.configure(bg="#e9ecef")
     hist_win.transient(root)
@@ -328,7 +323,7 @@ def view_history():
     container = ttk.Frame(hist_win, padding=10, style="Header.TFrame")
     container.pack(fill="both", expand=True)
 
-    ttk.Label(container, text="📜 Transaction History & Analytics",
+    ttk.Label(container, text="Transaction History & Analytics",
               font=("Segoe UI", 16, "bold"), style="Header.TLabel").pack(pady=10, fill="x")
 
     # Local history display widget, not text_display
@@ -356,11 +351,11 @@ def view_history():
     # Chart UI
     chart_ui = ttk.Frame(container, padding=10, style="Card.TFrame")
     chart_ui.pack(fill="x", padx=10, pady=10)
-    chart_type_var = tk.StringVar(value="Top 10 Selling Products")
+    chart_type_var = tk.StringVar(value="Top 5 Selling Products")
 
     ttk.Label(chart_ui, text="Select Chart:", style="Header.TLabel").pack(side="left", padx=(0, 5))
     chart_selector = ttk.Combobox(chart_ui, textvariable=chart_type_var,
-                                  values=["Top 10 Selling Products", "Stock Trend"],
+                                  values=["Top 5 Selling Products", "Stock Trend"],
                                   width=25, state="readonly")
     chart_selector.pack(side="left", padx=5)
 
