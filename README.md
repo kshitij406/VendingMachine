@@ -33,19 +33,6 @@ This project is a full-stack Python application that simulates a digital vending
 └── report.pdf           # Project report
 
 ````
-
----
-
-## Technologies Used
-
-- Python 3.13
-- Tkinter (GUI)
-- socket, threading (networking)
-- SQLite (data persistence)
-- requests + BeautifulSoup (web scraping exchange rates)
-- matplotlib (visual analytics)
-- Pillow (image display)
-
 ---
 
 ## Setup Instructions
@@ -60,7 +47,6 @@ This project is a full-stack Python application that simulates a digital vending
    `python server.py`
 
 4. **Run the client GUI in a separate terminal**:
-
    `python gui.py`
 
 ---
@@ -127,5 +113,4 @@ This project is a full-stack Python application that simulates a digital vending
 | Analytics        | matplotlib                   |
 | Image Handling   | Pillow (PIL)                 |
 | Currency Support | requests + BeautifulSoup     |
-| Platform         | Cross-platform               |
 
