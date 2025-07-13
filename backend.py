@@ -124,13 +124,20 @@ class VendingMachine:
         self.inventory = self.load_inventory()
 
     # Display all available products with currency conversion applied
-    def display_products(self):
-        self.refresh_inventory()
+    def display_products(self, cart=None):
+        # self.refresh_inventory()
         message = f"{'ProductID':<10} {'Name':<30} {'Price':<15} {'Stock':<6}\n"
         message += "-" * 70 + "\n"
+
         for pid, product in self.inventory.items():
+            # Subtract reserved quantity if item exists in cart
+            reserved_qty = 0
+            if cart and pid in cart.cart:
+                reserved_qty = cart.cart[pid].stock  # quantity reserved in cart
+            effective_stock = product.stock - reserved_qty
+
             converted_price = product.price * self.rate
-            message += f"{pid:<10} {product.name:<30} ({self.target_currency.upper()}) {converted_price:<9.2f} {product.stock:<6}\n"
+            message += f"{pid:<10} {product.name:<30} ({self.target_currency.upper()}) {converted_price:<9.2f} {max(effective_stock, 0):<6}\n"
         return message
 
     # Create a receipt string from the cart contents

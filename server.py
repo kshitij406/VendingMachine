@@ -54,11 +54,10 @@ class Server:
 
                 if request.lower().startswith("view"):
                     inventory.refresh_inventory()
-                    message = inventory.display_products()
+                    message = inventory.display_products(cart)
                     client_socket.send(message.encode("utf-8"))
 
                 elif request.lower().startswith("add"):
-                    inventory.refresh_inventory()
                     try:
                         _, pid, qty = request.split()
                         pid = int(pid)

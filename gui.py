@@ -312,7 +312,6 @@ def generate_chart(chart_type, product_id, holder):
 
 # Opens a window showing transaction history and analytics chart options
 def view_history():
-    """Admin function to view transaction history and generate sales charts"""
     hist_win = tk.Toplevel(root)
     hist_win.title("Transaction History & Analytics")
     hist_win.geometry("1100x700")
@@ -380,7 +379,7 @@ def edit_stock():
 
     response = send_command_safe("VIEW")
 
-    # 🛡️ Validate expected format
+    # ️ Validate expected format
     if not response or "ProductID" not in response or "Price" not in response:
         ttk.Label(product_frame, text="⚠️ Failed to load product list.",
                   font=("Segoe UI", 14), style="Header.TLabel").pack(pady=20)
@@ -535,19 +534,16 @@ def send_currency():
 
 # Clears all product widgets from display
 def clear_product_frame():
-    """Destroys all widgets inside the main product frame."""
     for widget in product_frame.winfo_children():
         widget.destroy()
 
 # Clears main text display panel
 def clear_display():
-    """Clears the main text display."""
     show_text_display()
     update_display("")
 
 # Replaces content in the text display panel
 def update_display(text):
-    """Updates the main text display with new content."""
     text_display.config(state='normal')
     text_display.delete(1.0, tk.END)
     text_display.insert(tk.END, text)
@@ -555,13 +551,11 @@ def update_display(text):
 
 # Switches GUI to product browsing layout
 def show_products_view():
-    """Switches the view to show the product list."""
     text_display_container.pack_forget()
     product_canvas_container.pack(fill="both", expand=True)
 
 # Switches GUI to text display panel
 def show_text_display():
-    """Switches the view to show the text display."""
     product_canvas_container.pack_forget()
     text_display_container.pack(fill="both", expand=True, padx=20, pady=20)
 
