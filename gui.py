@@ -138,8 +138,17 @@ def view_products():
                 img_label.configure(text="No Img", font=("Segoe UI", 9))
         img_label.grid(row=0, column=0, rowspan=2, padx=(0, 15), sticky="w")
 
+        # Inside view_products(), before setting details_text:
+        selected_currency = currency_var.get()
+        currency_symbols = {
+            "USD": "$",
+            "MUR": "Rs",
+            "INR": "₹",
+            "GBP": "£"
+        }
+        symbol = currency_symbols.get(selected_currency, "")
         # Product Details
-        details_text = f"{name}\nPrice: ${price} | Stock: {stock}"
+        details_text = f"{name}\nPrice: {symbol}{price} | Stock: {stock}"
         ttk.Label(item_frame, text=details_text, font=("Segoe UI", 11), style="Card.TLabel", justify="left")\
             .grid(row=0, column=1, rowspan=2, sticky="w")
 

@@ -125,7 +125,6 @@ class VendingMachine:
 
     # Display all available products with currency conversion applied
     def display_products(self, cart=None):
-        # self.refresh_inventory()
         message = f"{'ProductID':<10} {'Name':<30} {'Price':<15} {'Stock':<6}\n"
         message += "-" * 70 + "\n"
 
@@ -199,22 +198,25 @@ class VendingMachine:
         conn = sqlite3.connect("vending_machine.db")
         cur = conn.cursor()
         cur.execute("""
-            SELECT productID, quantity, totalPrice, transactionDate, username
-            FROM CartTransactions
-            ORDER BY transactionDate DESC LIMIT 20
-        """)
+                    SELECT t.productID, p.productName, t.quantity, t.totalPrice, t.transactionDate, t.username
+                    FROM CartTransactions t
+                             JOIN Products p ON t.productID = p.productID
+                    ORDER BY t.transactionDate DESC LIMIT 20
+                    """)
         transactions = cur.fetchall()
         conn.close()
         if not transactions:
             return "No previous transactions found."
+
         output = "\nRecent Transactions:\n"
-        output += f"{'ProductID':<10} {'Qty':<5} {'Total':<10} {'Date':<20} {'User'}\n"
-        output += "-" * 55 + "\n"
+        output += f"{'ProductID':<10} {'Name':<25} {'Qty':<5} {'Total':<10} {'Date':<20} {'User'}\n"
+        output += "-" * 80 + "\n"
         for row in transactions:
-            pid, qty, total, date, username = row
+            pid, name, qty, total, date, username = row
             converted = total * self.rate
-            output += f"{pid:<10} {qty:<5} {self.target_currency.upper()}{converted:<9.2f} {date:<20} {username}\n"
+            output += f"{pid:<10} {name:<25} {qty:<5} {self.target_currency.upper()}{converted:<9.2f} {date:<20} {username}\n"
         return output
+
 
 # Handles user login authentication
 class UserAuth:
