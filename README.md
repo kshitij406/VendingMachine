@@ -1,116 +1,132 @@
 # Smart Vending Machine for Digital Goods
 
-This project is a full-stack Python application that simulates a digital vending machine for purchasing downloadable items. It implements a client-server model with a GUI frontend, persistent storage using SQLite, and advanced features such as currency conversion and sales analytics.
+The Smart Vending Machine for Digital Goods is a full-stack Python application that simulates a digital vending system for purchasing downloadable items. The system follows a client-server architecture and integrates a graphical user interface, persistent database storage, live currency conversion, and sales analytics.
 
----
+This project was developed to demonstrate real-world software engineering concepts including modular design, networking, authentication, and data visualization.
 
-## Features
+## Key Features
 
-- Multi-tier architecture: client, server, backend logic, and database
-- Graphical User Interface built with Tkinter
-- Secure login system with credential validation from SQLite
-- Shopping cart functionality with add, remove, and checkout capabilities
-- Transaction logging and receipt generation
-- Sales analytics via matplotlib charts
-- Live currency conversion using exchangerate.guru
-- Modular codebase with clear separation of concerns
+* Multi-tier architecture separating client, server, backend logic, and database
+* Graphical user interface built using Tkinter
+* Secure login system with credential validation via SQLite
+* Shopping cart with add, remove, and checkout functionality
+* Transaction logging and receipt generation
+* Sales analytics visualized using matplotlib
+* Live currency conversion using exchangerate.guru
+* Modular and maintainable codebase with clear separation of concerns
 
----
+## System Architecture
+
+The application is structured into distinct layers:
+
+* **GUI Layer**: Handles user interaction and presentation
+* **Client Layer**: Sends requests and receives responses from the server
+* **Server Layer**: Manages authentication, requests, and concurrency
+* **Backend Layer**: Handles business logic, currency conversion, and database operations
+* **Database Layer**: Stores users, products, and transaction data using SQLite
 
 ## Project Structure
 
 ```
-
 .
-├── backend.py           # Business logic and database operations
-├── client.py            # Client-side networking logic
-├── server.py            # Socket server handling all requests
-├── gui.py               # Tkinter GUI and user interactions
-├── shop.sql             # SQL script for database schema and sample data
-├── vending\_machine.db   # SQLite database (should be generated or included)
-├── images/              # Product images used by the GUI
+├── backend.py            # Business logic and database operations
+├── client.py             # Client-side networking logic
+├── server.py             # Socket server handling all requests
+├── gui.py                # Tkinter GUI and user interactions
+├── shop.sql              # SQL schema and sample data
+├── vending_machine.db    # SQLite database
+├── images/               # Product images used by the GUI
 ├── README.md
-└── report.pdf           # Project report
-
-````
----
+└── report.pdf            # Project report
+```
 
 ## Setup Instructions
 
-1. **Install dependencies**:
-   `pip install requests beautifulsoup4 pillow matplotlib`
+### Requirements
 
-2. **Database**:
-   Ensure `vending_machine.db` is in the root directory. You can create it using the schema in `shop.sql`.
+Install the required dependencies:
 
-3. **Run the server**:
-   `python server.py`
+```
+pip install requests beautifulsoup4 pillow matplotlib
+```
 
-4. **Run the client GUI in a separate terminal**:
-   `python gui.py`
+### Database Setup
 
----
+Ensure `vending_machine.db` exists in the root directory.
+If not present, create it using the schema provided in `shop.sql`.
+
+### Running the Application
+
+Start the server:
+
+```
+python server.py
+```
+
+In a separate terminal, start the client GUI:
+
+```
+python gui.py
+```
 
 ## Usage
 
-* Log in with valid credentials from the `Users` table in the database.
-* The application terminates after three failed login attempts.
-* Available operations via the GUI:
+* Log in using valid credentials stored in the `Users` table
+* The application exits after three failed login attempts
+* Available operations include:
 
-  * View products with names, prices, stock, and optional images
-  * Add products to cart with quantity selection
-  * Remove items from the cart
-  * Checkout and receive a formatted receipt
-  * Admins can view transaction history and generate analytics charts
-  * Currency display can be changed (USD, GBP, INR, MUR)
+  * Viewing products with price, stock, and images
+  * Adding and removing items from the cart
+  * Completing purchases and receiving receipts
+  * Viewing transaction history and sales analytics (admin access)
+  * Switching display currency (USD, GBP, INR, MUR)
 
----
+## Implementation Overview
 
-## Implementation Summary
+### backend.py
 
-* **`backend.py`**:
+* Inventory management
+* Currency conversion using live exchange rates
+* Transaction handling and logging
 
-  * Inventory management
-  * Currency conversion (via web scraping)
-  * Transaction logging and checkout logic
+### server.py
 
-* **`server.py`**:
+* TCP socket server with threading
+* Handles authentication, product queries, cart operations, and analytics requests
 
-  * TCP server using socket and threading
-  * Handles user authentication, product viewing, cart updates, and analytics commands
+### client.py
 
-* **`client.py`**:
+* Communicates with the server
+* Sends structured requests and processes responses
 
-  * Sends user requests to the server and returns responses to the GUI
+### gui.py
 
-* **`gui.py`**:
-
-  * Handles login, main GUI interface, interaction with client commands
-  * Visualizes transaction history and analytics using matplotlib
-
----
-
-## Future Improvements
-
-* Add GUI-based user registration
-* Integrate OAuth (Google sign-in)
-* Replace threading with asynchronous I/O or thread pool
-* Enhance visual design and responsiveness of the GUI
-* Add backend unit tests
-* Migrate to a web interface using Flask or FastAPI
-* Add real-time inventory updates and notifications
-
----
+* Login interface and main vending machine UI
+* Displays products, cart state, receipts, and analytics charts
 
 ## Technical Specifications
 
-| Component        | Details                      |
-| ---------------- | ---------------------------- |
-| Programming Lang | Python 3.13                  |
-| UI               | Tkinter                      |
-| Networking       | socket, threading            |
-| DB               | SQLite with `sqlite3` module |
-| Analytics        | matplotlib                   |
-| Image Handling   | Pillow (PIL)                 |
-| Currency Support | requests + BeautifulSoup     |
+| Component            | Details                 |
+| -------------------- | ----------------------- |
+| Programming Language | Python 3.13             |
+| User Interface       | Tkinter                 |
+| Networking           | socket, threading       |
+| Database             | SQLite (sqlite3)        |
+| Analytics            | matplotlib              |
+| Image Handling       | Pillow (PIL)            |
+| Currency Conversion  | requests, BeautifulSoup |
 
+## Future Improvements
+
+* GUI-based user registration
+* OAuth authentication support
+* Asynchronous networking or thread pooling
+* Improved GUI responsiveness and styling
+* Automated backend unit tests
+* Migration to a web-based interface using Flask or FastAPI
+* Real-time inventory updates and notifications
+
+## Author
+
+Kshitij Jha
+BSc Computer Science
